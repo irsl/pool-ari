@@ -12,7 +12,7 @@ from datetime import datetime
 from collections import namedtuple
 from threading import Lock
 
-THROTTLED_PAUSE_SEC = 180
+DEBUG = os.getenv("DEBUG") or False
 UPSTREAM = "https://www.ariston-net.remotethermo.com"
 class Cred:
     usr = None
@@ -34,6 +34,10 @@ api_auth = None
 def eprint(*args, **kwargs):
     now_str = datetime.now().replace(microsecond=0).isoformat()
     print(f"[{now_str}]", *args, **kwargs, file=sys.stderr)
+
+def debug(*args, **kwargs):
+    if not DEBUG: return
+    eprint(*args, **kwargs)
 
 def _iterate_pool():
     global pool_index
@@ -62,15 +66,15 @@ def ensure_logged_in(session, user_agent):
     try:
         if session.token:
             return
-        eprint("logging in to upstream", session.cred.usr)
+        eprint("logging in to upstream", session)
         response = requests.post(
             UPSTREAM+"/api/v2/accounts/login",
             json={"usr": session.cred.usr, "pwd": session.cred.pwd},
             headers={"Content-Type":"application/json", "User-Agent": user_agent}
         )
+        debug("login response received", response.status_code, response.content)
         rj = response.json()
         session.token = rj["token"]
-        eprint("login response received", response.status_code, json.dumps(rj))
     finally:
         session.in_use = False
 
@@ -99,7 +103,7 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw_response_body)
         self.wfile.flush()
-        eprint("response", code, raw_response_body, headers)
+        debug("response", code, raw_response_body, headers)
         
     def _respond_json(self, code, data, headers={}):
         raw_response_body = json.dumps(data).encode()
@@ -112,13 +116,13 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
         for d in ["Host", "ar.authtoken", "ar.authToken", "Content-Length", "Content-Encoding", "Transfer-Encoding"]:
             h.pop(d, None)
         h["Ar.authtoken"] = session.token
-        eprint("sending request to upstream", self.command, url, json.dumps(data), h)
+        debug("sending request to upstream", self.command, url, json.dumps(data), h)
         response = requests.request(self.command, headers=h, url=url, json=data)
         raw_response_body = response.content
         h = dict(response.headers)
         for d in ["Content-Length", "Connection", "Date"]:
             h.pop(d, None)
-        eprint("upstream response received", response.status_code, raw_response_body, h)
+        debug("upstream response received", response.status_code, raw_response_body, h)
         return (response.status_code, raw_response_body, h)
 
     def _do(self):
@@ -126,7 +130,7 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
         data = None
         if cl:
             data = json.loads(self.rfile.read(cl))
-        eprint("incoming request", self.command, self.path, json.dumps(data))
+        debug("incoming request", self.command, self.path, json.dumps(data))
         expected_token = f"{api_auth.usr}:{api_auth.pwd}"
         if "/accounts/login" in self.path:
             if data["usr"] != api_auth.usr or data["pwd"] != api_auth.pwd:
@@ -143,7 +147,7 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
                 (code, body, headers) = self._send_upstream(session, data)
                 if code >= 400:
                     if code == 429:
-                        session.throttled = time.time()+THROTTLED_PAUSE_SEC
+                        session.throttled = time.time()+self.server.args.throttled_pause_sec
                     elif code in [404]:
                         pass
                     else:
@@ -160,6 +164,7 @@ def do_the_job(args):
     eprint(f"Listening on {args.listen_host} : {args.listen_port}")
 
     httpd = ThreadingHTTPServer((args.listen_host, args.listen_port), AriHTTPRequestHandler)
+    setattr(httpd, "args", args)
     httpd.serve_forever()
 
 def parse_creds_by_prefix(prefix):
@@ -194,6 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--listen-host", default="0.0.0.0", help="host to listen on")
     parser.add_argument("--listen-port", type=int, default=9999, help="port to listen on")
+    parser.add_argument("--throttled_pause_sec", type=int, default=180, help="when a slot is kicked out by the upstreams throttling mechanism, deactivate the slot for this time window")
     args = parser.parse_args()
     (api_auth, pool) = parse_creds()
     do_the_job(args)
