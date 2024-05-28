@@ -9,14 +9,15 @@ import time
 import sys
 import os
 from datetime import datetime
-from collections import namedtuple
 from threading import Lock
 
 DEBUG = os.getenv("DEBUG") or False
 UPSTREAM = "https://www.ariston-net.remotethermo.com"
+
 class Cred:
     usr = None
     pwd = None
+
 class Session:
     in_use = False # by one of the handlers
     throttled = 0 # when the server kicked us out, this is the unix time when this slot may be used again
@@ -43,12 +44,14 @@ def _iterate_pool():
     global pool_index
     original_index = pool_index
     while pool_index < len(pool):
-        yield pool[pool_index]
+        session = pool[pool_index]
         pool_index += 1
+        yield session
     pool_index = 0
     while pool_index < original_index:
-        yield pool[pool_index]
+        session = pool[pool_index]
         pool_index += 1
+        yield session
 
 def obtain_pool_entry():
     with mutex:
