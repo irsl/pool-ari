@@ -25,7 +25,7 @@ class Session:
     cred = None
     
     def __str__(self):
-        return self.cred.usr
+        return "#" + str(pool.index(self)) + " " + self.cred.usr
 
 mutex = Lock()
 pool = []
@@ -150,6 +150,7 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
                 (code, body, headers) = self._send_upstream(session, data)
                 if code >= 400:
                     if code == 429:
+                        eprint("slot is throttled", body)
                         session.throttled = time.time()+self.server.args.throttled_pause_sec
                     elif code in [404]:
                         pass
@@ -202,7 +203,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--listen-host", default="0.0.0.0", help="host to listen on")
     parser.add_argument("--listen-port", type=int, default=9999, help="port to listen on")
-    parser.add_argument("--throttled_pause_sec", type=int, default=180, help="when a slot is kicked out by the upstreams throttling mechanism, deactivate the slot for this time window")
+    parser.add_argument("--throttled_pause_sec", type=int, default=300, help="when a slot is kicked out by the upstreams throttling mechanism, deactivate the slot for this time window")
     args = parser.parse_args()
     (api_auth, pool) = parse_creds()
     do_the_job(args)
