@@ -8,11 +8,15 @@ import re
 import time
 import sys
 import os
+import datetime
 from datetime import datetime
 from threading import Lock
 
 DEBUG = os.getenv("DEBUG") or False
 UPSTREAM = "https://www.ariston-net.remotethermo.com"
+
+TIME_NOT_AFTER = int(os.getenv("TIME_NOT_AFTER") or 0)
+TIME_NOT_BEFORE = int(os.getenv("TIME_NOT_BEFORE") or 0)
 
 class Cred:
     usr = None
@@ -129,6 +133,14 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
         return (response.status_code, raw_response_body, h)
 
     def _do(self):
+        if TIME_NOT_AFTER or TIME_NOT_BEFORE:
+            now = datetime.datetime.now()
+        if TIME_NOT_AFTER:
+            if now.hour >= TIME_NOT_AFTER:
+                self._respond(500, {"error":"time after"})
+        if TIME_NOT_BEFORE:
+            if now.hour < TIME_NOT_BEFORE:
+                self._respond(500, {"error":"time before"})
         cl = int(self.headers.get("Content-Length") or 0)
         data = None
         if cl:
