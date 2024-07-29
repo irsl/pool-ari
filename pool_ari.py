@@ -8,7 +8,6 @@ import re
 import time
 import sys
 import os
-import datetime
 from datetime import datetime
 from threading import Lock
 
@@ -134,7 +133,7 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def _do(self):
         if TIME_NOT_AFTER or TIME_NOT_BEFORE:
-            now = datetime.datetime.now()
+            now = datetime.now()
         if TIME_NOT_AFTER:
             if now.hour >= TIME_NOT_AFTER:
                 self._respond(500, {"error":"time after"})
