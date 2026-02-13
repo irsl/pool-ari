@@ -136,10 +136,10 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
             now = datetime.now()
         if TIME_NOT_AFTER:
             if now.hour >= TIME_NOT_AFTER:
-                return self._respond_json(500, json.dumps({"error":"time after"}))
+                return self._respond_json(500, {"error":"time after"})
         if TIME_NOT_BEFORE:
             if now.hour < TIME_NOT_BEFORE:
-                return self._respond_json(500, json.dumps({"error":"time before"}))
+                return self._respond_json(500, {"error":"time before"})
         cl = int(self.headers.get("Content-Length") or 0)
         data = None
         if cl:
