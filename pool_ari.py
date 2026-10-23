@@ -150,6 +150,9 @@ class AriHTTPRequestHandler(BaseHTTPRequestHandler):
             if data["usr"] != api_auth.usr or data["pwd"] != api_auth.pwd:
                 return self._respond_json(403, {"error":"invalid usr or pwd"})
             return self._respond_json(200, {"token": expected_token})
+        if "/busErrors" in self.path:
+            debug("Client is requesting busErrors, returning a fake response")
+            return self._respond(200, b"")
         # authorize the request based on the API credentials
         if self.headers["Ar.authtoken"] != expected_token:
             return self._respond_json(403, {"error":"invalid token"})
